@@ -1,0 +1,37 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dash and zip
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y dash zip
+
+      - name: Build (gates CRLF, POSIX sh, webroot JS)
+        run: ./build.sh
+
+      - name: Check module.prop and update.json agree
+        run: |
+          VER=$(sed -n 's/^version=//p' duckanalyticsbs/module.prop)
+          CODE=$(sed -n 's/^versionCode=//p' duckanalyticsbs/module.prop)
+          JVER=$(sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' update.json)
+          JCODE=$(sed -n 's/.*"versionCode": *\([0-9]*\).*/\1/p' update.json)
+          echo "module.prop $VER/$CODE   update.json $JVER/$JCODE"
+          [ "$VER" = "$JVER" ] || { echo "version mismatch"; exit 1; }
+          [ "$CODE" = "$JCODE" ] || { echo "versionCode mismatch"; exit 1; }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DuckAnalyticsBS
+          path: DuckAnalyticsBS-v*.zip
+          if-no-files-found: error

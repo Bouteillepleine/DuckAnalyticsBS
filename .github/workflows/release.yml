@@ -1,0 +1,78 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Install dash and zip
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y dash zip
+
+      - name: Resolve version
+        id: v
+        run: |
+          VER=$(sed -n 's/^version=//p' duckanalyticsbs/module.prop)
+          CODE=$(sed -n 's/^versionCode=//p' duckanalyticsbs/module.prop)
+          echo "ver=$VER" >> "$GITHUB_OUTPUT"
+          echo "code=$CODE" >> "$GITHUB_OUTPUT"
+          if [ "${GITHUB_REF_TYPE}" = "tag" ] && [ "${GITHUB_REF_NAME}" != "$VER" ]; then
+            echo "tag ${GITHUB_REF_NAME} does not match module.prop $VER"
+            exit 1
+          fi
+
+      - name: Build
+        run: ./build.sh
+
+      - name: Refresh update.json
+        run: |
+          VER=${{ steps.v.outputs.ver }}
+          CODE=${{ steps.v.outputs.code }}
+          cat > update.json <<EOF
+          {
+            "version": "$VER",
+            "versionCode": $CODE,
+            "zipUrl": "https://github.com/${GITHUB_REPOSITORY}/releases/download/$VER/DuckAnalyticsBS-$VER.zip",
+            "changelog": "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/main/changelog.md"
+          }
+          EOF
+          cat update.json
+
+      - name: Commit update.json if it changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if ! git diff --quiet -- update.json; then
+            git add update.json
+            git commit -m "Point update.json at ${{ steps.v.outputs.ver }}"
+            git push origin HEAD:main
+          else
+            echo "update.json already current"
+          fi
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VER=${{ steps.v.outputs.ver }}
+          NOTES=$(awk "/^## $VER\$/{f=1;next} /^## /{f=0} f" changelog.md)
+          [ -n "$NOTES" ] || NOTES="See changelog.md"
+          if gh release view "$VER" >/dev/null 2>&1; then
+            gh release upload "$VER" "DuckAnalyticsBS-$VER.zip" --clobber
+          else
+            printf '%s\n' "$NOTES" | gh release create "$VER" \
+              "DuckAnalyticsBS-$VER.zip" --title "$VER" --notes-file -
+          fi
