@@ -59,6 +59,7 @@ com.oplus.nhs
 "
 
 feat_peach=1
+feat_peach_backend=auto
 feat_hungtask=1
 feat_gmstel=1
 feat_oostel=1
@@ -376,6 +377,9 @@ have_susfs() { [ -x "$KSU_SUSFS" ] && [ -d /sys/fs/susfs ]; }
 is_peach() { [ -f "$VPATH" ]; }
 
 peach_backend() {
+  case "$feat_peach_backend" in
+    nomount|susfs|mount) echo "$feat_peach_backend"; return 0 ;;
+  esac
   if have_suite; then echo nomount
   elif have_susfs; then echo susfs
   else echo mount
@@ -430,7 +434,7 @@ peach_write_patched() {
 
 peach_generate() {
   [ -n "$KEY" ] || { log "generate: KEY unset"; return 1; }
-  [ "$BACKEND" = nomount ] && "$NOMOUNT" vfs del "$VPATH" >/dev/null 2>&1
+  have_suite && "$NOMOUNT" vfs del "$VPATH" >/dev/null 2>&1
   [ -s "$VPATH" ] || { log "generate: INI missing or empty at $VPATH"; return 1; }
   grep -q '^END' "$VPATH" || { log "generate: INI has no END marker, refusing to patch"; return 1; }
 
@@ -452,9 +456,15 @@ peach_generate() {
     u:object_r:*) chcon "$con" "$TREE" 2>/dev/null ;;
   esac
 
-  for other in "$TREE_NM" "$TREE_MM" "$TREE_SU"; do
-    [ "$other" = "$TREE" ] || rm -f "$other" 2>/dev/null
-  done
+  if [ "$BACKEND" = mount ]; then
+    mkdir -p "${TREE_NM%/*}" 2>/dev/null
+    cp -f "$TREE" "$TREE_NM" 2>/dev/null
+    rm -f "$TREE_SU" 2>/dev/null
+  else
+    for other in "$TREE_NM" "$TREE_MM" "$TREE_SU"; do
+      [ "$other" = "$TREE" ] || rm -f "$other" 2>/dev/null
+    done
+  fi
 
   log "generate: patched INI written to $TREE (backend $BACKEND)"
   return 0
@@ -512,7 +522,11 @@ recent_flood() {
 peach_turn_on() { peach_generate || return 1; peach_redirect_add; reload_wifi; }
 peach_turn_off() {
   peach_redirect_del
-  [ "$BACKEND" = susfs ] || rm -f "$TREE" 2>/dev/null
+  if [ "$BACKEND" = mount ]; then
+    rm -f "$TREE" "$TREE_NM" 2>/dev/null
+  elif [ "$BACKEND" != susfs ]; then
+    rm -f "$TREE" 2>/dev/null
+  fi
   [ "$BACKEND" = mount ] && log "backend mount: stock INI returns after a reboot"
   reload_wifi
 }

@@ -20,4 +20,5 @@ sh /data/adb/modules/duckanalyticsbs/ctl.sh on|off  peach|gmstel|oostel|gmsloc|g
 ```
 
 Does not touch Bluetooth, FCM, background execution, standby buckets or runtime permissions.
-State lives in `/data/adb/duckanalyticsbs.{conf,state,log}`. Build with `./build.sh`.
+State lives in `/data/adb/duckanalyticsbs.{conf,state,log}`; `feat_peach_backend=auto|nomount|susfs|mount`
+pins the dmesg backend. Build with `./build.sh`.
