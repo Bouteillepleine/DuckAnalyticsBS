@@ -14,7 +14,11 @@ LEGACY=/data/adb/modules/peach_roamstats_quiet
 GMS=com.google.android.gms
 
 VPATH=/vendor/etc/wifi/peach_v2/WCNSS_qcom_cfg.ini
-TREE=$MODDIR/vendor/etc/wifi/peach_v2/WCNSS_qcom_cfg.ini
+TREE_NM=$MODDIR/vendor/etc/wifi/peach_v2/WCNSS_qcom_cfg.ini
+TREE_MM=$MODDIR/system/vendor/etc/wifi/peach_v2/WCNSS_qcom_cfg.ini
+TREE_SU=$MODDIR/peach/WCNSS_qcom_cfg.ini
+STOCK=$MODDIR/peach/stock.ini
+KSU_SUSFS=/data/adb/ksu/bin/ksu_susfs
 KEY=groam_info_stats_num
 
 HT_PATH=/proc/sys/kernel/hung_task_timeout_secs
@@ -368,7 +372,22 @@ sysctl_revert() {
 }
 
 have_suite() { [ -x "$NOMOUNT" ] && [ -x "$NM_BIN" ]; }
+have_susfs() { [ -x "$KSU_SUSFS" ] && [ -d /sys/fs/susfs ]; }
 is_peach() { [ -f "$VPATH" ]; }
+
+peach_backend() {
+  if have_suite; then echo nomount
+  elif have_susfs; then echo susfs
+  else echo mount
+  fi
+}
+
+BACKEND=$(peach_backend)
+case "$BACKEND" in
+  nomount) TREE=$TREE_NM ;;
+  susfs)   TREE=$TREE_SU ;;
+  *)       TREE=$TREE_MM ;;
+esac
 
 key_ok() {
   [ -f "$1" ] || return 1
@@ -382,7 +401,7 @@ key_ok() {
 }
 
 peach_on() { key_ok "$TREE"; }
-peach_active() { have_suite && "$NM_BIN" list 2>/dev/null | grep -q "^$VPATH -> "; }
+peach_active() { key_ok "$VPATH"; }
 
 peach_write_patched() {
   src=$1
@@ -411,9 +430,15 @@ peach_write_patched() {
 
 peach_generate() {
   [ -n "$KEY" ] || { log "generate: KEY unset"; return 1; }
-  have_suite && "$NOMOUNT" vfs del "$VPATH" >/dev/null 2>&1
-  [ -s "$VPATH" ] || { log "generate: stock INI missing or empty at $VPATH"; return 1; }
-  grep -q '^END' "$VPATH" || { log "generate: stock INI has no END marker, refusing to patch"; return 1; }
+  [ "$BACKEND" = nomount ] && "$NOMOUNT" vfs del "$VPATH" >/dev/null 2>&1
+  [ -s "$VPATH" ] || { log "generate: INI missing or empty at $VPATH"; return 1; }
+  grep -q '^END' "$VPATH" || { log "generate: INI has no END marker, refusing to patch"; return 1; }
+
+  if ! key_ok "$VPATH" && [ ! -s "$STOCK" ]; then
+    mkdir -p "${STOCK%/*}" 2>/dev/null
+    cp -f "$VPATH" "$STOCK" 2>/dev/null && log "generate: kept a pristine copy at $STOCK"
+  fi
+
   mkdir -p "${TREE%/*}" || { log "generate: cannot create ${TREE%/*}"; return 1; }
   peach_write_patched "$VPATH" "$TREE" || { log "generate: could not write patched INI"; return 1; }
   if ! key_ok "$TREE"; then
@@ -422,12 +447,46 @@ peach_generate() {
     return 1
   fi
   chmod 0644 "$TREE" 2>/dev/null
-  log "generate: patched INI written to $TREE"
+  con=$(ls -Z "$VPATH" 2>/dev/null | awk '{print $1}')
+  case "$con" in
+    u:object_r:*) chcon "$con" "$TREE" 2>/dev/null ;;
+  esac
+
+  for other in "$TREE_NM" "$TREE_MM" "$TREE_SU"; do
+    [ "$other" = "$TREE" ] || rm -f "$other" 2>/dev/null
+  done
+
+  log "generate: patched INI written to $TREE (backend $BACKEND)"
   return 0
 }
 
-peach_redirect_add() { have_suite && "$NOMOUNT" vfs add "$VPATH" "$TREE" 2>/dev/null; }
-peach_redirect_del() { have_suite && "$NOMOUNT" vfs del "$VPATH" 2>/dev/null; }
+peach_redirect_add() {
+  case "$BACKEND" in
+    nomount)
+      "$NOMOUNT" vfs add "$VPATH" "$TREE" >/dev/null 2>&1
+      ;;
+    susfs)
+      "$KSU_SUSFS" add_open_redirect "$VPATH" "$TREE" 0 >/dev/null 2>&1
+      ;;
+    mount)
+      return 0
+      ;;
+  esac
+}
+
+peach_redirect_del() {
+  case "$BACKEND" in
+    nomount)
+      "$NOMOUNT" vfs del "$VPATH" >/dev/null 2>&1
+      ;;
+    susfs)
+      [ -s "$STOCK" ] && cp -f "$STOCK" "$TREE" 2>/dev/null
+      ;;
+    mount)
+      return 0
+      ;;
+  esac
+}
 
 reload_wifi() {
   command -v svc >/dev/null 2>&1 || return 0
@@ -451,7 +510,12 @@ recent_flood() {
 }
 
 peach_turn_on() { peach_generate || return 1; peach_redirect_add; reload_wifi; }
-peach_turn_off() { peach_redirect_del; rm -f "$TREE" 2>/dev/null; reload_wifi; }
+peach_turn_off() {
+  peach_redirect_del
+  [ "$BACKEND" = susfs ] || rm -f "$TREE" 2>/dev/null
+  [ "$BACKEND" = mount ] && log "backend mount: stock INI returns after a reboot"
+  reload_wifi
+}
 
 apply_all() {
   build_cache || log "component cache unavailable; component features skipped this pass"
@@ -533,6 +597,7 @@ card_text() {
   [ "$feat_wifiscan" = "1" ] && [ "$(wifiscan_get)" = "0" ] && x="$x · wifiscan off"
   if is_peach; then
     if peach_on && peach_active; then x="$x · dmesg quiet"
+    elif peach_on && [ "$BACKEND" = mount ]; then x="$x · dmesg staged, needs reboot"
     elif peach_on; then x="$x · dmesg staged"
     else x="$x · dmesg loud"; fi
   fi
@@ -567,8 +632,8 @@ status_json() {
   peach_active && pa=true
   ht=$(cat "$HT_PATH" 2>/dev/null)
   printf '{'
-  printf '"peach":{"dev":%s,"on":%s,"active":%s,"want":%s,"flood":%s},' \
-    "$pd" "$po" "$pa" "$(jbool "$feat_peach")" "$(flood_total)"
+  printf '"peach":{"dev":%s,"on":%s,"active":%s,"want":%s,"backend":"%s","flood":%s},' \
+    "$pd" "$po" "$pa" "$(jbool "$feat_peach")" "$BACKEND" "$(flood_total)"
   printf '"gmstel":{"want":%s,"applied":%s,"present":%s},' \
     "$(jbool "$feat_gmstel")" "$(count_comp_applied "$GMS_TEL")" "$(count_comp_present "$GMS_TEL")"
   printf '"oostel":{"want":%s,"applied":%s,"present":%s},' \
@@ -602,6 +667,7 @@ report() {
   printf '   %-22s %s\n' "peach INI on device" "$(is_peach && echo yes || echo no)"
   printf '   %-22s %s\n' "backing file patched" "$(peach_on && echo yes || echo no)"
   printf '   %-22s %s\n' "redirect live" "$(peach_active && echo yes || echo no)"
+  printf '   %-22s %s\n' "serving backend" "$BACKEND"
   printf '   %-22s %s\n' "flood lines in dmesg" "$(flood_total)"
   printf '   %-22s %s\n' "hung_task_timeout" "$(cat "$HT_PATH" 2>/dev/null)"
   echo

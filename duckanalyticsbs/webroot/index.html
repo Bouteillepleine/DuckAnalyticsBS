@@ -234,9 +234,10 @@
 
   function peachBadge(p) {
     if (!p.dev) return '<span class="badge dim">n/a</span>';
+    if (p.active) return '<span class="badge ok">quiet</span>';
     if (!p.on) return '<span class="badge bad">loud</span>';
-    if (!p.active) return '<span class="badge warn">staged</span>';
-    return '<span class="badge ok">quiet</span>';
+    if (p.backend === "mount") return '<span class="badge warn">reboot</span>';
+    return '<span class="badge warn">staged</span>';
   }
 
   function swHtml(id, on, dead) {
@@ -289,9 +290,10 @@
              cntBadge(S.oostel.applied, S.oostel.present) +
              swHtml("oostel", S.oostel.want, S.oostel.present === 0));
     h += row("dmesg quiet",
-             S.peach.dev ? ("peach_v2 roam-stats — " + S.peach.flood + " lines in the buffer")
-                         : "no peach_v2 Wi-Fi here, inert",
-             peachBadge(S.peach) + swHtml("peach", S.peach.want && S.peach.on, !S.peach.dev));
+             !S.peach.dev ? "no peach_v2 Wi-Fi here, inert"
+               : "peach_v2 roam-stats — " + S.peach.flood + " lines in the buffer, via " + S.peach.backend,
+             peachBadge(S.peach) +
+             swHtml("peach", S.peach.want && S.peach.on, !S.peach.dev));
     h += row("hung_task timeout", "300 s instead of 60 s, stops benign D-state spam",
              '<span class="badge ' + (S.hungtask.value >= 300 ? "ok" : "dim") + '">' + S.hungtask.value + "s</span>" +
              swHtml("hungtask", S.hungtask.want));

@@ -18,7 +18,11 @@ fi
 if [ "$feat_peach" = "1" ] && is_peach; then
   if peach_generate; then
     ui_print "- peach_v2 INI patched from this device's own copy"
-    peach_redirect_add >/dev/null 2>&1 && ui_print "- dmesg redirect live now, no gap until reboot"
+    if [ "$BACKEND" = mount ]; then
+      ui_print "- dmesg: no NoMount or SUSFS here, the patched INI is served on reboot"
+    elif peach_redirect_add; then
+      ui_print "- dmesg redirect live now via $BACKEND, no gap until reboot"
+    fi
   else
     ui_print "! could not patch peach_v2 INI now - will retry at boot"
     ui_print "  reason is in run.log"

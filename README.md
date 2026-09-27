@@ -1,7 +1,8 @@
 # DuckAnalyticsBS
 
 Turns off Google Play Services and OxygenOS analytics, and silences the peach_v2 Wi-Fi dmesg flood.
-Magisk / KernelSU / APatch, with a WebUI.
+Magisk / KernelSU / APatch, with a WebUI. The dmesg part serves its patched INI through NoMount
+or SUSFS open-redirect when either is present, otherwise through the module mount on reboot.
 
 Every target is checked to exist on *this* device before it is touched, verified after, logged, and
 reverted on uninstall. Anything already disabled by something else is never claimed.
