@@ -1,7 +1,9 @@
 id=duckanalyticsbs
 name=DuckAnalyticsBS
-version=v1.0.1
-versionCode=10001
+version=v1.0.2
+versionCode=10002
 author=XxxY
 description=🟡 staged — reboot or tap ▶ to apply
 updateJson=https://raw.githubusercontent.com/Bouteillepleine/DuckAnalyticsBS/main/update.json
+webuiIcon=webroot/icon.png
+actionIcon=webroot/icon.png

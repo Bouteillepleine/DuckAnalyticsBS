@@ -1,3 +1,9 @@
+## v1.0.2
+
+- WebUI header duck sits bare instead of inside a gradient tile
+- Module, WebUI and WebUI X shortcut icons are now the duck
+- module.prop declares webuiIcon and actionIcon
+
 ## v1.0.1
 
 - dmesg backend is no longer NoMount-only: NoMount, SUSFS `add_open_redirect`, or the
