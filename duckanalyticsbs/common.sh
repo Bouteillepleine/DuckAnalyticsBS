@@ -7,6 +7,7 @@ LOG=/data/adb/$MODID.log
 STATE=/data/adb/$MODID.state
 CACHE=/data/adb/$MODID.comps
 CACHEVER=/data/adb/$MODID.compsver
+REJECT=/data/adb/$MODID.rejected
 CONF=/data/adb/$MODID.conf
 LEGACY=/data/adb/modules/peach_roamstats_quiet
 
@@ -114,12 +115,21 @@ set_full() {
 
 gms_version() { dumpsys package "$GMS" 2>/dev/null | grep -m1 'versionName=' | tr -d ' '; }
 
-cache_drop() { rm -f "$CACHE" "$CACHEVER" 2>/dev/null; }
+cache_drop() { rm -f "$CACHE" "$CACHEVER" "$REJECT" 2>/dev/null; }
+
+reject_add() {
+  [ -f "$REJECT" ] && grep -qxF "$1" "$REJECT" && return 0
+  printf '%s
+' "$1" >> "$REJECT"
+}
+
+rejected() { [ -s "$REJECT" ] && grep -qxF "$1" "$REJECT"; }
 
 build_cache() {
   v=$(gms_version)
   [ -n "$v" ] || return 1
   [ -s "$CACHE" ] && [ "$v" = "$(cat "$CACHEVER" 2>/dev/null)" ] && return 0
+  rm -f "$REJECT" 2>/dev/null
   t=/data/local/tmp/.$MODID.dump
   pm dump "$GMS" > "$t" 2>/dev/null
   [ -s "$t" ] || { rm -f "$t"; return 1; }
@@ -133,7 +143,11 @@ build_cache() {
   return 0
 }
 
-comp_exists() { set_full "$1"; [ -s "$CACHE" ] && grep -qxF "$FULL" "$CACHE"; }
+comp_exists() {
+  set_full "$1"
+  rejected "$FULL" && return 1
+  [ -s "$CACHE" ] && grep -qxF "$FULL" "$CACHE"
+}
 
 DIS=/data/local/tmp/.$MODID.dis
 PKGS=/data/local/tmp/.$MODID.pkgs
@@ -196,6 +210,7 @@ comp_apply() {
   fi
   case "$out" in
     *"does not exist"*)
+      reject_add "$c"
       log "absent: $c is listed by pm dump but PackageManager rejects it"
       return 1
       ;;
