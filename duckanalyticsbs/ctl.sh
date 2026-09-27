@@ -9,6 +9,9 @@ case "$1" in
   report)
     report
     ;;
+  measure)
+    measure
+    ;;
   apply)
     apply_all
     [ "$feat_peach" = "1" ] && is_peach && ! peach_active && peach_turn_on
@@ -38,7 +41,7 @@ case "$1" in
     build_cache && echo "component cache rebuilt: $(wc -l < "$CACHE") entries" || echo "rebuild failed"
     ;;
   *)
-    echo "usage: ctl.sh {status|report|apply|revert|log|refresh}"
+    echo "usage: ctl.sh {status|report|measure|apply|revert|log|refresh}"
     echo "       ctl.sh {on|off} {peach|gmstel|oostel|gmsloc|gmsact|wifiscan|hungtask|all}"
     ;;
 esac

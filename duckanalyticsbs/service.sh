@@ -31,4 +31,12 @@ MODDIR=${0%/*}
   fi
 
   set_card live
+
+  sleep 240
+  before="$(count_comp_applied "$GMS_TEL")"
+  apply_all
+  after="$(count_comp_applied "$GMS_TEL")"
+  [ "$before" = "$after" ] || log "recheck: GMS re-enabled $((after - before)) component(s) after boot, re-applied"
+  log "recheck done: gms $after/$(count_comp_present "$GMS_TEL") oos $(count_pkg_applied)/$(count_pkg_present)"
+  set_card live
 ) &

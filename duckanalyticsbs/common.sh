@@ -105,6 +105,13 @@ full_comp() {
   esac
 }
 
+set_full() {
+  case "$1" in
+    .*) FULL=$GMS$1 ;;
+    *)  FULL=$1 ;;
+  esac
+}
+
 gms_version() { dumpsys package "$GMS" 2>/dev/null | grep -m1 'versionName=' | tr -d ' '; }
 
 cache_drop() { rm -f "$CACHE" "$CACHEVER" 2>/dev/null; }
@@ -126,34 +133,48 @@ build_cache() {
   return 0
 }
 
-comp_exists() { [ -s "$CACHE" ] && grep -qxF "$(full_comp "$1")" "$CACHE"; }
+comp_exists() { set_full "$1"; [ -s "$CACHE" ] && grep -qxF "$FULL" "$CACHE"; }
 
 DIS=/data/local/tmp/.$MODID.dis
 PKGS=/data/local/tmp/.$MODID.pkgs
 PKGSD=/data/local/tmp/.$MODID.pkgsd
-rm -f "$DIS" "$PKGS" "$PKGSD" 2>/dev/null
+LOOKUP_TTL=12
+
+_dis_ok=0
+_pkgs_ok=0
+
+fresh() {
+  [ -s "$1" ] || return 1
+  _f_now=$(date +%s 2>/dev/null) || return 1
+  _f_mt=$(stat -c %Y "$1" 2>/dev/null) || return 1
+  [ -n "$_f_now" ] && [ -n "$_f_mt" ] || return 1
+  [ "$((_f_now - _f_mt))" -lt "$LOOKUP_TTL" ] && [ "$((_f_now - _f_mt))" -ge 0 ]
+}
 
 dis_refresh() {
   dumpsys package "$GMS" 2>/dev/null | sed -n '/disabledComponents:/,/enabledComponents:/p' > "$DIS" 2>/dev/null
+  _dis_ok=1
 }
 
 pkgs_refresh() {
   pm list packages --user 0 > "$PKGS" 2>/dev/null
   pm list packages -d --user 0 > "$PKGSD" 2>/dev/null
+  _pkgs_ok=1
 }
 
 comp_disabled() {
-  [ -f "$DIS" ] || dis_refresh
-  grep -qF "$(full_comp "$1")" "$DIS" 2>/dev/null
+  [ "$_dis_ok" = 1 ] || { fresh "$DIS" || dis_refresh; _dis_ok=1; }
+  set_full "$1"
+  grep -qF "$FULL" "$DIS" 2>/dev/null
 }
 
 pkg_present() {
-  [ -f "$PKGS" ] || pkgs_refresh
+  [ "$_pkgs_ok" = 1 ] || { fresh "$PKGS" || pkgs_refresh; _pkgs_ok=1; }
   grep -qx "package:$1" "$PKGS" 2>/dev/null
 }
 
 pkg_disabled() {
-  [ -f "$PKGSD" ] || pkgs_refresh
+  [ "$_pkgs_ok" = 1 ] || { fresh "$PKGSD" || pkgs_refresh; _pkgs_ok=1; }
   grep -qx "package:$1" "$PKGSD" 2>/dev/null
 }
 
@@ -395,10 +416,10 @@ reload_wifi() {
 flood_total() { dmesg 2>/dev/null | grep -c extract_roam_trigger_stats_tlv; }
 
 recent_flood() {
-  now=$(cut -d' ' -f1 /proc/uptime 2>/dev/null | cut -d. -f1)
-  [ -n "$now" ] || return 1
-  n=$(dmesg 2>/dev/null | grep extract_roam_trigger_stats_tlv | awk -v t="$(( now - 30 ))" '{ if (match($0, /^\[ *[0-9]+/)) { s = substr($0, RSTART, RLENGTH); gsub(/[^0-9]/, "", s); if (s + 0 > t) c++ } } END { print c + 0 }')
-  [ "${n:-0}" -gt 0 ]
+  _rf_now=$(cut -d' ' -f1 /proc/uptime 2>/dev/null | cut -d. -f1)
+  [ -n "$_rf_now" ] || return 1
+  _rf_n=$(dmesg 2>/dev/null | grep extract_roam_trigger_stats_tlv | awk -v t="$(( _rf_now - 30 ))" '{ if (match($0, /^\[ *[0-9]+/)) { s = substr($0, RSTART, RLENGTH); gsub(/[^0-9]/, "", s); if (s + 0 > t) c++ } } END { print c + 0 }')
+  [ "${_rf_n:-0}" -gt 0 ]
 }
 
 peach_turn_on() { peach_generate || return 1; peach_redirect_add; reload_wifi; }
@@ -513,6 +534,15 @@ status_json() {
 
 gms_uid() { pm list packages -U 2>/dev/null | grep "package:$GMS " | awk -F'uid:' '{print $2}'; }
 
+measure() {
+  u=$(gms_uid)
+  echo "-- GMS wakelocks since last charge (uid $u)"
+  dumpsys batterystats --charged 2>/dev/null | grep "Wake lock u0a$(( ${u:-10000} - 10000 ))" | head -6
+  echo
+  echo "-- GMS BLE scan clients (untouched by design)"
+  dumpsys bluetooth_manager 2>/dev/null | grep -F "appName: $GMS" | head -4
+}
+
 report() {
   build_cache >/dev/null 2>&1
   echo "== DuckAnalyticsBS =="
@@ -553,13 +583,6 @@ report() {
   for o in $GMS_ACT_OPS; do
     printf '   %s\n' "$(cmd appops get "$GMS" "$o" 2>/dev/null | head -1)"
   done
-  echo
-  u=$(gms_uid)
-  echo "-- measured GMS wakelocks since last charge (uid $u)"
-  dumpsys batterystats --charged 2>/dev/null | grep "Wake lock u0a$(( ${u:-10000} - 10000 ))" | head -6
-  echo
-  echo "-- GMS BLE scan clients (untouched by design)"
-  dumpsys bluetooth_manager 2>/dev/null | grep -F "appName: $GMS" | head -4
   echo
   echo "-- revert list (what uninstall will undo)"
   if [ -s "$STATE" ]; then sed 's/^/   /' "$STATE"; else echo "   nothing"; fi

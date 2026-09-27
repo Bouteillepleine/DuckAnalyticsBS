@@ -48,6 +48,26 @@ for f in module.prop customize.sh common.sh ctl.sh action.sh service.sh post-fs-
   esac
 done
 
+NODE=""
+for c in node /mnt/c/Program\ Files/nodejs/node.exe; do
+  command -v "$c" >/dev/null 2>&1 && { NODE=$c; break; }
+  [ -x "$c" ] && { NODE=$c; break; }
+done
+if [ -n "$NODE" ]; then
+  TMPJS=$(mktemp -t dabs.XXXXXX.js)
+  sed -n '/^<script>$/,/^<\/script>$/p' "$SRC/webroot/index.html" | sed '1d;$d' > "$TMPJS"
+  [ -s "$TMPJS" ] || { echo "could not extract webroot JS" >&2; exit 1; }
+  if ! "$NODE" --check "$(wslpath -w "$TMPJS" 2>/dev/null || echo "$TMPJS")" 2>&1; then
+    echo "webroot/index.html JS does not parse - refusing to package" >&2
+    rm -f "$TMPJS"
+    exit 1
+  fi
+  rm -f "$TMPJS"
+  echo "webroot JS parses"
+else
+  echo "warning: node not found, skipping JS syntax gate" >&2
+fi
+
 rm -f "$OUT"
 ( cd "$SRC" && zip -X -q "../$OUT" "${FILES[@]}" )
 echo "built $OUT"

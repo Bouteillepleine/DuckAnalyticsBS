@@ -151,6 +151,7 @@
   }
   .navb .ic { font-size: 17px; }
   .navb.on { color: var(--txt); background: var(--card); }
+  .navb:active { transform: scale(0.94); }
   .empty { text-align: center; color: var(--faint); font-size: 13px; padding: 20px 0; }
   .busy { opacity: .55; pointer-events: none; }
 </style>
@@ -297,7 +298,7 @@
   }
 
   function textHtml(key, empty) {
-    if (TEXT[key] === undefined) return '<div class="card"><div class="empty">' + empty + "</div></div>";
+    if (!TEXT[key]) return '<div class="card"><div class="empty">' + empty + "</div></div>";
     return '<div class="card"><pre>' + esc(TEXT[key]) + "</pre></div>";
   }
 
@@ -358,12 +359,27 @@
   }
 
   async function loadText(key) {
-    var r = await exec(CTL + " " + key, 120000);
-    TEXT[key] = (r.stdout || r.stderr || "(empty)").replace(/\s+$/, "");
+    if (TEXT[key] !== undefined) return;
+    TEXT[key] = "";
+    if (key === "report") {
+      var r = await exec(CTL + " report", 120000);
+      TEXT.report = (r.stdout || r.stderr || "(empty)").replace(/\s+$/, "");
+      if (TAB === "report") draw();
+      var head = TEXT.report;
+      TEXT.report = head + "\n\n-- measuring…";
+      if (TAB === "report") draw();
+      var m = await exec(CTL + " measure", 120000);
+      TEXT.report = head + "\n\n" + (m.stdout || m.stderr || "").replace(/\s+$/, "");
+      if (TAB === "report") draw();
+      return;
+    }
+    var q = await exec(CTL + " " + key, 60000);
+    TEXT[key] = (q.stdout || q.stderr || "(empty)").replace(/\s+$/, "");
     if (TAB === key) draw();
   }
 
   function setTab(t) {
+    if (TAB === t) return;
     TAB = t;
     Array.prototype.forEach.call(document.querySelectorAll(".navb"), function (b) {
       b.classList.toggle("on", b.getAttribute("data-tab") === t);
@@ -397,6 +413,7 @@
       TEXT = {};
       await refresh();
       if (TAB !== "status") await loadText(TAB);
+      draw();
       this.classList.remove("spinning");
       this.disabled = false;
     };
