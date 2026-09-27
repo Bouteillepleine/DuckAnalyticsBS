@@ -43,7 +43,8 @@ while IFS=' ' read -r kind a b; do
   case "$kind" in
     comp)    pm enable --user 0 "$G/$a" >/dev/null 2>&1; echo "enabled $G/$a" >> "$LOG" ;;
     pkg)     pm enable --user 0 "$a" >/dev/null 2>&1; echo "enabled $a" >> "$LOG" ;;
-    op)      cmd appops set "$G" "$a" default >/dev/null 2>&1; echo "appop $a default" >> "$LOG" ;;
+    op)      [ -n "$b" ] || b=allow
+             cmd appops set --uid "$G" "$a" "$b" >/dev/null 2>&1; echo "appop $a $b" >> "$LOG" ;;
     setting) settings put global "$a" "$b" 2>/dev/null; echo "setting $a=$b" >> "$LOG" ;;
     sysctl)  [ -w "/proc/sys/kernel/$a" ] && echo "$b" > "/proc/sys/kernel/$a" 2>/dev/null
              echo "sysctl $a=$b" >> "$LOG" ;;

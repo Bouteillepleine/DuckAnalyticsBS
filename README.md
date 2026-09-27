@@ -59,11 +59,16 @@ phantom broadcasts, no `device_idle_constants`. What is left is what measurably 
 
 ### Opt in — these change behaviour
 
-- **GMS location reporting** — 5 ULR / semantic-location upload components (4 of the 5
-  are declared on GMS 26.37.30; the absent one is skipped and logged). Kills Location
-  History and Timeline.
+- **GMS location reporting** — 5 ULR / semantic-location upload components. On GMS
+  26.37.30 three actually apply: one is not declared at all, and one
+  (`BatchDeidentifiedDataUploadService`) is listed by `pm dump` but rejected by
+  PackageManager with `IllegalArgumentException: Component class ... does not exist`.
+  Both are skipped and logged, not retried blindly. Kills Location History and Timeline.
 - **GMS sensors** — `ACTIVITY_RECOGNITION` and `BODY_SENSORS` appops to `ignore`
-  (appops work where `pm revoke` cannot, and are reversible). Measured: GMS held
+  (appops work where `pm revoke` cannot, and are reversible). These must be set at
+  **UID scope**: `cmd appops set <pkg> ACTIVITY_RECOGNITION ignore` returns 0 and does
+  nothing — only `--uid` takes. Reverting to `default` does *not* restore `allow`, so
+  the original mode is recorded at apply time and restored literally. Measured: GMS held
   sensor 172 for **3 h 18 m blamed / 5 h 19 m real** in 6 h 39 m. Stops step counting
   and motion detection.
 - **Background Wi-Fi scanning** — `wifi_scan_always_enabled=0`. Feeds GMS's
@@ -100,7 +105,11 @@ Nothing is assumed:
   exists **or** is already disabled. Otherwise a disabled component that dropped out of
   the dump reads as `11/10`.
 - Every change is read back (`disabledComponents` for components, `pm list packages -d`
-  for packages, `cmd appops get` for appops). Success or failure is logged either way.
+  for packages, `cmd appops get --uid` for appops). Success or failure is logged either way.
+- GMS re-enables some of its own components during startup. The boot pass reported
+  `gms 11/11` and two `.measurement.*` components were enabled again two minutes later,
+  so a second verification pass runs four minutes after boot and logs any drift it
+  re-applies (`recheck: GMS re-enabled 2 component(s) after boot, re-applied`).
 - Nothing is silenced with `2>/dev/null` and then assumed to have worked.
 - Anything already disabled by something else is recorded as such and **not** re-enabled
   on uninstall.

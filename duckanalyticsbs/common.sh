@@ -178,7 +178,7 @@ pkg_disabled() {
   grep -qx "package:$1" "$PKGSD" 2>/dev/null
 }
 
-op_is() { cmd appops get "$GMS" "$1" 2>/dev/null | grep -q "$2"; }
+op_is() { cmd appops get --uid "$GMS" "$1" 2>/dev/null | grep -q "Uid mode: $1: $2"; }
 
 comp_apply() {
   c=$(full_comp "$1")
@@ -187,13 +187,19 @@ comp_apply() {
     return 0
   fi
   comp_exists "$1" || { log "skip absent component $c"; return 1; }
-  pm disable --user 0 "$GMS/$c" >/dev/null 2>&1
+  out=$(pm disable --user 0 "$GMS/$c" 2>&1)
   dis_refresh
   if comp_disabled "$1"; then
     state_add "comp $c"
     log "disabled component $c"
     return 0
   fi
+  case "$out" in
+    *"does not exist"*)
+      log "absent: $c is listed by pm dump but PackageManager rejects it"
+      return 1
+      ;;
+  esac
   log "FAILED to disable component $c"
   return 1
 }
@@ -240,15 +246,23 @@ pkg_revert() {
   log "re-enabled package $1"
 }
 
+op_state_line() { grep -m1 "^op $1 " "$STATE" 2>/dev/null; }
+
+op_mode() {
+  cmd appops get --uid "$GMS" "$1" 2>/dev/null | sed -n "s/^Uid mode: $1: \([a-z]*\).*/\1/p" | head -1
+}
+
 op_apply() {
   if op_is "$1" ignore; then
-    state_has "op $1" || log "pre-set elsewhere, will not restore on uninstall: appop $1"
+    [ -n "$(op_state_line "$1")" ] || log "pre-set elsewhere, will not restore on uninstall: appop $1"
     return 0
   fi
-  cmd appops set "$GMS" "$1" ignore >/dev/null 2>&1
+  orig=$(op_mode "$1")
+  [ -n "$orig" ] || orig=allow
+  cmd appops set --uid "$GMS" "$1" ignore >/dev/null 2>&1
   if op_is "$1" ignore; then
-    state_add "op $1"
-    log "appop $1 -> ignore"
+    state_add "op $1 $orig"
+    log "appop $1 $orig -> ignore"
     return 0
   fi
   log "FAILED to set appop $1"
@@ -256,10 +270,13 @@ op_apply() {
 }
 
 op_revert() {
-  state_has "op $1" || return 0
-  cmd appops set "$GMS" "$1" default >/dev/null 2>&1
-  state_del "op $1"
-  log "appop $1 -> default"
+  line=$(op_state_line "$1")
+  [ -n "$line" ] || return 0
+  orig=$(printf '%s' "$line" | awk '{print $3}')
+  [ -n "$orig" ] || orig=allow
+  cmd appops set --uid "$GMS" "$1" "$orig" >/dev/null 2>&1
+  state_del "$line"
+  log "appop $1 -> $orig"
 }
 
 count_comp_applied() {
@@ -581,7 +598,7 @@ report() {
   echo
   echo "-- opt-in: GMS sensor appops (feat_gmsact=$feat_gmsact)"
   for o in $GMS_ACT_OPS; do
-    printf '   %s\n' "$(cmd appops get "$GMS" "$o" 2>/dev/null | head -1)"
+    printf '   %s\n' "$(cmd appops get --uid "$GMS" "$o" 2>/dev/null | head -1)"
   done
   echo
   echo "-- revert list (what uninstall will undo)"
