@@ -34,17 +34,13 @@ GMS_TEL="
 .stats.service.DropBoxEntryAddedReceiver
 .stats.service.DropBoxEntryAddedService
 .clearcut.uploader.QosUploaderService
-.measurement.PackageMeasurementReceiver
-.measurement.PackageMeasurementTaskService
 .usagereporting.service.UsageReportingIntentService
 "
 
 GMS_LOC="
-com.google.android.location.reporting.service.UploadGcmTaskService
 com.google.android.location.reporting.service.DispatchingService
 com.google.android.location.reporting.service.ReportingSyncService
 .semanticlocationhistory.deidentifieddata.uploads.BatchDeidentifiedDataUploadService
-.locationsharingreporter.service.reporting.periodic.PeriodicReporterMonitoringService
 "
 
 GMS_ACT_OPS="ACTIVITY_RECOGNITION BODY_SENSORS"
@@ -508,12 +504,31 @@ feat_off() {
 }
 
 card_text() {
-  gp=$(count_comp_present "$GMS_TEL"); ga=$(count_comp_applied "$GMS_TEL")
-  op=$(count_pkg_present); oa=$(count_pkg_applied)
-  if [ "$ga" = "$gp" ]; then g="GMS $ga"; else g="GMS $ga/$gp"; fi
-  if [ "$oa" = "$op" ]; then o="OOS $oa"; else o="OOS $oa/$op"; fi
+  seg=""
+  applicable=0
+  incomplete=0
+  anyapplied=0
+
+  add_seg() {
+    if [ -z "$seg" ]; then seg=$1; else seg="$seg · $1"; fi
+  }
+
+  track() {
+    [ "$2" -gt 0 ] || return 0
+    applicable=$((applicable + 1))
+    [ "$1" -gt 0 ] && anyapplied=1
+    [ "$1" = "$2" ] || incomplete=1
+    if [ "$1" = "$2" ]; then add_seg "$3 $1"; else add_seg "$3 $1/$2"; fi
+  }
+
+  track "$(count_comp_applied "$GMS_TEL")" "$(count_comp_present "$GMS_TEL")" GMS
+  track "$(count_pkg_applied)" "$(count_pkg_present)" OOS
+
   x=""
-  [ "$feat_gmsloc" = "1" ] && x="$x · loc $(count_comp_applied "$GMS_LOC")"
+  if [ "$feat_gmsloc" = "1" ]; then
+    lp=$(count_comp_present "$GMS_LOC")
+    [ "$lp" -gt 0 ] && x="$x · loc $(count_comp_applied "$GMS_LOC")"
+  fi
   [ "$feat_gmsact" = "1" ] && x="$x · sensors $(count_op_applied)"
   [ "$feat_wifiscan" = "1" ] && [ "$(wifiscan_get)" = "0" ] && x="$x · wifiscan off"
   if is_peach; then
@@ -521,12 +536,15 @@ card_text() {
     elif peach_on; then x="$x · dmesg staged"
     else x="$x · dmesg loud"; fi
   fi
-  if [ "$ga" = "0" ] && [ "$oa" = "0" ]; then
+
+  if [ "$applicable" = "0" ]; then
+    printf '⚪ nothing here to silence%s\n' "$x"
+  elif [ "$anyapplied" = "0" ]; then
     printf '🔴 off%s\n' "$x"
-  elif [ "$ga" = "$gp" ] && [ "$oa" = "$op" ]; then
-    printf '🟢 %s · %s%s\n' "$g" "$o" "$x"
+  elif [ "$incomplete" = "0" ]; then
+    printf '🟢 %s%s\n' "$seg" "$x"
   else
-    printf '🟡 %s · %s%s\n' "$g" "$o" "$x"
+    printf '🟡 %s%s\n' "$seg" "$x"
   fi
 }
 
@@ -589,24 +607,24 @@ report() {
   echo
   echo "-- GMS telemetry components"
   for c in $GMS_TEL; do
-    if ! comp_exists "$c"; then s=absent
-    elif comp_disabled "$c"; then s=disabled
+    if comp_disabled "$c"; then s=disabled
+    elif ! comp_exists "$c"; then s=absent
     else s=ENABLED; fi
     printf '   %-9s %s\n' "$s" "$c"
   done
   echo
   echo "-- OxygenOS telemetry packages"
   for p in $OOS_TEL; do
-    if ! pkg_present "$p"; then s=absent
-    elif pkg_disabled "$p"; then s=disabled
+    if pkg_disabled "$p"; then s=disabled
+    elif ! pkg_present "$p"; then s=absent
     else s=ENABLED; fi
     printf '   %-9s %s\n' "$s" "$p"
   done
   echo
   echo "-- opt-in: GMS location reporting (feat_gmsloc=$feat_gmsloc)"
   for c in $GMS_LOC; do
-    if ! comp_exists "$c"; then s=absent
-    elif comp_disabled "$c"; then s=disabled
+    if comp_disabled "$c"; then s=disabled
+    elif ! comp_exists "$c"; then s=absent
     else s=ENABLED; fi
     printf '   %-9s %s\n' "$s" "$c"
   done

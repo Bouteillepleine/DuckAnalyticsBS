@@ -249,14 +249,25 @@
   }
 
   function heroHtml() {
-    var gt = S.gmstel, ot = S.oostel;
-    var none = gt.applied === 0 && ot.applied === 0;
-    var full = gt.applied === gt.present && ot.applied === ot.present;
-    var cls = none ? "bad" : (full ? "ok" : "warn");
-    var word = none ? "OFF" : (full ? "ON" : "PARTIAL");
-    var bits = ["GMS " + gt.applied + "/" + gt.present, "OOS " + ot.applied + "/" + ot.present];
+    var apply = [];
+    if (S.gmstel.present > 0) apply.push({ n: "GMS", a: S.gmstel.applied, p: S.gmstel.present });
+    if (S.oostel.present > 0) apply.push({ n: "OOS", a: S.oostel.applied, p: S.oostel.present });
+
+    var cls, word;
+    if (!apply.length) {
+      cls = "warn"; word = "N/A";
+    } else if (apply.every(function (f) { return f.a === 0; })) {
+      cls = "bad"; word = "OFF";
+    } else if (apply.every(function (f) { return f.a === f.p; })) {
+      cls = "ok"; word = "ON";
+    } else {
+      cls = "warn"; word = "PARTIAL";
+    }
+
+    var bits = apply.map(function (f) { return f.n + " " + f.a + "/" + f.p; });
+    if (!apply.length) bits.push("nothing here to silence");
     if (S.peach.dev) bits.push(S.peach.on && S.peach.active ? "dmesg quiet" : (S.peach.on ? "dmesg staged" : "dmesg loud"));
-    if (S.gmsloc.want) bits.push("loc " + S.gmsloc.applied + "/" + S.gmsloc.present);
+    if (S.gmsloc.want && S.gmsloc.present > 0) bits.push("loc " + S.gmsloc.applied + "/" + S.gmsloc.present);
     if (S.gmsact.want) bits.push("sensors " + S.gmsact.applied + "/2");
     if (S.wifiscan.want && S.wifiscan.value === "0") bits.push("wifiscan off");
     return '<div class="card hero"><div class="big ' + cls + '">' + word + "</div>" +
@@ -267,10 +278,16 @@
     if (!S) return '<div class="card"><div class="empty">Could not read status.</div></div>';
     var h = heroHtml();
     h += '<div class="sect">On by default</div><div class="card">';
-    h += row("GMS telemetry", "Analytics, Clearcut upload, stats collectors, DropBox reporters",
-             cntBadge(S.gmstel.applied, S.gmstel.present) + swHtml("gmstel", S.gmstel.want));
-    h += row("OxygenOS telemetry", "statistics.rom, olc, logkit, metis, stdid, nhs",
-             cntBadge(S.oostel.applied, S.oostel.present) + swHtml("oostel", S.oostel.want));
+    h += row("GMS telemetry",
+             S.gmstel.present > 0 ? "Analytics, Clearcut upload, stats collectors, DropBox reporters"
+                                  : "no Play Services here, nothing to do",
+             cntBadge(S.gmstel.applied, S.gmstel.present) +
+             swHtml("gmstel", S.gmstel.want, S.gmstel.present === 0));
+    h += row("OxygenOS telemetry",
+             S.oostel.present > 0 ? "statistics.rom, olc, logkit, metis, stdid, nhs"
+                                  : "not an OxygenOS device, nothing to do",
+             cntBadge(S.oostel.applied, S.oostel.present) +
+             swHtml("oostel", S.oostel.want, S.oostel.present === 0));
     h += row("dmesg quiet",
              S.peach.dev ? ("peach_v2 roam-stats — " + S.peach.flood + " lines in the buffer")
                          : "no peach_v2 Wi-Fi here, inert",
@@ -281,8 +298,11 @@
     h += "</div>";
 
     h += '<div class="sect">Opt in — these change behaviour</div><div class="card">';
-    h += row("GMS location reporting", "Kills Location History / Timeline uploads",
-             cntBadge(S.gmsloc.applied, S.gmsloc.present) + swHtml("gmsloc", S.gmsloc.want), true);
+    h += row("GMS location reporting",
+             S.gmsloc.present > 0 ? "Kills Location History / Timeline uploads"
+                                  : "not available on this Play Services build",
+             cntBadge(S.gmsloc.applied, S.gmsloc.present) +
+             swHtml("gmsloc", S.gmsloc.want, S.gmsloc.present === 0), true);
     h += row("GMS sensors", "Stops step counting and motion detection",
              cntBadge(S.gmsact.applied, 2) + swHtml("gmsact", S.gmsact.want), true);
     h += row("Background Wi-Fi scanning", "Less accurate network location",
