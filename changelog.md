@@ -1,3 +1,8 @@
+## v1.0.3
+
+- Icon leads with a crossed-out chart so the module reads at a glance,
+  with the duck as a corner badge
+
 ## v1.0.2
 
 - WebUI header duck sits bare instead of inside a gradient tile
