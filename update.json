@@ -1,6 +1,6 @@
 {
-  "version": "v1.0.1",
-  "versionCode": 10001,
-  "zipUrl": "https://github.com/Bouteillepleine/DuckAnalyticsBS/releases/download/v1.0.1/DuckAnalyticsBS-v1.0.1.zip",
+  "version": "v1.0.2",
+  "versionCode": 10002,
+  "zipUrl": "https://github.com/Bouteillepleine/DuckAnalyticsBS/releases/download/v1.0.2/DuckAnalyticsBS-v1.0.2.zip",
   "changelog": "https://raw.githubusercontent.com/Bouteillepleine/DuckAnalyticsBS/main/changelog.md"
 }
