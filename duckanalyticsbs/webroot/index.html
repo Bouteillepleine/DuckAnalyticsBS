@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta http-equiv="Cache-Control" content="no-store, must-revalidate" />
+<meta http-equiv="Pragma" content="no-cache" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'" />
+<title>DuckAnalyticsBS</title>
+<link rel="icon" type="image/png" href="icon.png" />
+<style>
+  :root {
+    --bg:     #0a0c12;
+    --bg2:    #111624;
+    --card:   rgba(255,255,255,0.048);
+    --brd:    rgba(255,255,255,0.09);
+    --txt:    #eef1f8;
+    --muted:  #a6aec2;
+    --faint:  #8d96ab;
+    --acc:    #ffc857;
+    --acc2:   #4ade80;
+    --ok:     #4ade80;
+    --warn:   #ffc857;
+    --bad:    #ff6b6b;
+    --mono:   ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+    --radius: 20px;
+    --shadow: 0 12px 34px rgba(0,0,0,0.42);
+  }
+  html[data-theme="light"] {
+    --bg:    #f4f6fb;
+    --bg2:   #ffffff;
+    --card:  rgba(255,255,255,0.86);
+    --brd:   rgba(16,26,48,0.10);
+    --txt:   #101a2e;
+    --muted: #4c5770;
+    --faint: #5b6478;
+    --shadow: 0 10px 28px rgba(20,32,64,0.10);
+    --ok:    #0e9a6c;
+    --warn:  #a9761a;
+    --bad:   #c8453f;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    color: var(--txt);
+    background:
+      radial-gradient(1100px 620px at 10% -14%, rgba(255,200,87,0.13), transparent 58%),
+      radial-gradient(900px 540px at 110% 4%, rgba(74,222,128,0.10), transparent 55%),
+      linear-gradient(180deg, var(--bg2), var(--bg) 62%);
+    background-attachment: fixed;
+    min-height: 100vh;
+    padding: 0 15px calc(84px + env(safe-area-inset-bottom));
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 680px; margin: 0 auto; }
+  header {
+    position: sticky; top: 0; z-index: 20;
+    display: flex; align-items: center; gap: 13px;
+    padding: max(16px, env(safe-area-inset-top)) 19px 14px;
+    background: linear-gradient(180deg, var(--bg2) 58%, transparent);
+    margin: 0 -15px 6px;
+  }
+  .logo {
+    width: 44px; height: 44px; border-radius: 13px; flex: none; display: grid; place-items: center;
+    background: linear-gradient(135deg, var(--acc), var(--acc2));
+    box-shadow: 0 8px 22px rgba(255,200,87,0.30); font-size: 23px;
+  }
+  .brand { min-width: 0; flex: 1 1 auto; }
+  .brand h1 { margin: 0; font-size: 21px; font-weight: 760; letter-spacing: -0.4px; }
+  .brand p {
+    margin: 2px 0 0; font-size: 11.5px; color: var(--muted);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .iconbtn {
+    width: 44px; height: 44px; border-radius: 14px; flex: none; display: grid; place-items: center;
+    background: var(--card); border: 1px solid var(--brd); color: var(--txt); cursor: pointer; padding: 0;
+  }
+  .iconbtn:active { transform: scale(0.92); }
+  .iconbtn svg {
+    width: 23px; height: 23px; display: block;
+    fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+  }
+  .iconbtn .ico-sun { display: block; }
+  .iconbtn .ico-moon { display: none; }
+  html[data-theme="light"] .iconbtn .ico-sun { display: none; }
+  html[data-theme="light"] .iconbtn .ico-moon { display: block; }
+  #refreshbtn.spinning svg { animation: sp 0.9s linear infinite; }
+  @keyframes sp { to { transform: rotate(360deg); } }
+  .card {
+    background: var(--card); border: 1px solid var(--brd); border-radius: var(--radius);
+    box-shadow: var(--shadow); padding: 16px; margin-bottom: 13px; backdrop-filter: blur(10px);
+  }
+  .hero { text-align: center; padding: 22px 16px 20px; }
+  .hero .big { font-size: 30px; font-weight: 800; letter-spacing: -0.8px; }
+  .hero .big.ok { color: var(--ok); } .hero .big.warn { color: var(--warn); } .hero .big.bad { color: var(--bad); }
+  .hero .sub { font-size: 12.5px; color: var(--muted); margin-top: 7px; }
+  .sect { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--faint);
+          margin: 18px 0 8px 6px; font-weight: 700; }
+  .row { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--brd); }
+  .row:last-child { border-bottom: 0; padding-bottom: 2px; }
+  .row:first-child { padding-top: 2px; }
+  .row .txt { flex: 1 1 auto; min-width: 0; }
+  .row .nm { font-size: 14.5px; font-weight: 640; }
+  .row .ds { font-size: 11.5px; color: var(--faint); margin-top: 2px; line-height: 1.45; }
+  .row .ds.risk { color: var(--warn); }
+  .badge {
+    display: inline-block; font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 999px;
+    border: 1px solid transparent; font-variant-numeric: tabular-nums; white-space: nowrap;
+  }
+  .badge.ok   { color: var(--ok);   background: rgba(74,222,128,0.13);  border-color: rgba(74,222,128,0.35); }
+  .badge.warn { color: var(--warn); background: rgba(255,200,87,0.13);  border-color: rgba(255,200,87,0.35); }
+  .badge.bad  { color: var(--bad);  background: rgba(255,107,107,0.13); border-color: rgba(255,107,107,0.35); }
+  .badge.dim  { color: var(--faint); background: rgba(141,150,171,0.12); border-color: rgba(141,150,171,0.28); }
+  .sw {
+    width: 52px; height: 30px; border-radius: 999px; border: 1px solid var(--brd);
+    background: rgba(141,150,171,0.16); position: relative; flex: 0 0 auto; cursor: pointer;
+    transition: background .15s;
+  }
+  .sw::after {
+    content: ""; position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; border-radius: 50%;
+    background: var(--faint); transition: transform .15s, background .15s;
+  }
+  .sw.on { background: rgba(74,222,128,0.28); border-color: transparent; }
+  .sw.on::after { transform: translateX(22px); background: var(--ok); }
+  .sw.dead { opacity: .38; cursor: default; }
+  .acts { display: flex; gap: 9px; }
+  button.act {
+    flex: 1; border: 1px solid var(--brd); background: rgba(141,150,171,0.10); color: var(--txt);
+    font-size: 14.5px; font-weight: 650; padding: 13px; border-radius: 15px; cursor: pointer;
+  }
+  button.act:active { transform: scale(0.98); }
+  button.act.primary { background: linear-gradient(135deg, var(--acc), var(--acc2)); color: #11140a; border-color: transparent; }
+  pre {
+    margin: 0; font-family: var(--mono); font-size: 11px; line-height: 1.5; color: var(--muted);
+    white-space: pre; overflow-x: auto;
+  }
+  .banner {
+    background: rgba(255,107,107,0.12); border: 1px solid rgba(255,107,107,0.35); color: var(--txt);
+    border-radius: 15px; padding: 13px 15px; font-size: 12.5px; margin-bottom: 13px;
+  }
+  .nav {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 30; display: flex; gap: 4px;
+    padding: 7px 14px calc(9px + env(safe-area-inset-bottom));
+    background: linear-gradient(0deg, var(--bg2) 62%, transparent);
+    border-top: 1px solid var(--brd);
+  }
+  .navb {
+    flex: 1; display: grid; place-items: center; gap: 2px; padding: 7px 0; border: 0; border-radius: 13px;
+    background: none; color: var(--faint); font-size: 10.5px; font-weight: 640; cursor: pointer;
+  }
+  .navb .ic { font-size: 17px; }
+  .navb.on { color: var(--txt); background: var(--card); }
+  .empty { text-align: center; color: var(--faint); font-size: 13px; padding: 20px 0; }
+  .busy { opacity: .55; pointer-events: none; }
+</style>
+</head>
+<body>
+<div class="wrap" id="wrap">
+  <header>
+    <div class="logo">🦆</div>
+    <div class="brand">
+      <h1>DuckAnalyticsBS</h1>
+      <p id="subtitle">reading device state…</p>
+    </div>
+    <button class="iconbtn" id="themebtn" title="theme" aria-label="switch theme">
+      <svg class="ico-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.2M12 19.3v2.2M4.2 4.2l1.6 1.6M18.2 18.2l1.6 1.6M2.5 12h2.2M19.3 12h2.2M4.2 19.8l1.6-1.6M18.2 5.8l1.6-1.6"/></svg>
+      <svg class="ico-moon" viewBox="0 0 24 24"><path d="M20.5 14.3A8.5 8.5 0 1 1 9.7 3.5a6.8 6.8 0 0 0 10.8 10.8z"/></svg>
+    </button>
+    <button class="iconbtn" id="refreshbtn" title="refresh" aria-label="refresh">
+      <svg viewBox="0 0 24 24"><path d="M20.5 12a8.5 8.5 0 1 1-2.6-6.1"/><path d="M20.8 4.2v5.1h-5.1"/></svg>
+    </button>
+  </header>
+
+  <div id="nobridge" class="banner" hidden>
+    No WebUI bridge here. Open this page from KernelSU, APatch, Magisk (MMRL) or WebUI-X so DuckAnalyticsBS can run commands as root.
+  </div>
+
+  <div id="view"></div>
+</div>
+
+<nav class="nav">
+  <button class="navb on" data-tab="status"><span class="ic">🧿</span><span>Status</span></button>
+  <button class="navb" data-tab="report"><span class="ic">📋</span><span>Report</span></button>
+  <button class="navb" data-tab="log"><span class="ic">🧾</span><span>Log</span></button>
+</nav>
+
+<script>
+"use strict";
+(function () {
+  var KSU = window.ksu;
+  var CTL = "sh /data/adb/modules/duckanalyticsbs/ctl.sh";
+  var execId = 0;
+  var S = null;
+  var TAB = "status";
+  var TEXT = {};
+
+  function $(id) { return document.getElementById(id); }
+  function esc(s) {
+    return String(s === null || s === undefined ? "" : s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+
+  function exec(cmd, timeoutMs) {
+    return new Promise(function (resolve) {
+      if (!KSU || !KSU.exec) { resolve({ errno: -1, stdout: "", stderr: "no webui bridge" }); return; }
+      var name = "__dabs" + (execId++);
+      var settled = false;
+      var finish = function (r) {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        try { delete window[name]; } catch (e) { window[name] = undefined; }
+        resolve(r);
+      };
+      var timer = setTimeout(function () {
+        finish({ errno: -1, stdout: "", stderr: "timed out - it may still be running" });
+      }, timeoutMs || 90000);
+      window[name] = function (errno, stdout, stderr) {
+        finish({ errno: Number(errno), stdout: stdout || "", stderr: stderr || "" });
+      };
+      try { KSU.exec(cmd, JSON.stringify({ cwd: "/" }), name); }
+      catch (e) { finish({ errno: -1, stdout: "", stderr: String(e) }); }
+    });
+  }
+
+  function cntBadge(applied, present) {
+    if (!present) return '<span class="badge dim">none here</span>';
+    var cls = applied === present ? "ok" : (applied === 0 ? "dim" : "warn");
+    return '<span class="badge ' + cls + '">' + applied + "/" + present + "</span>";
+  }
+
+  function peachBadge(p) {
+    if (!p.dev) return '<span class="badge dim">n/a</span>';
+    if (!p.on) return '<span class="badge bad">loud</span>';
+    if (!p.active) return '<span class="badge warn">staged</span>';
+    return '<span class="badge ok">quiet</span>';
+  }
+
+  function swHtml(id, on, dead) {
+    return '<div class="sw' + (on ? " on" : "") + (dead ? " dead" : "") + '" data-feat="' + id + '"></div>';
+  }
+
+  function row(nm, ds, right, risk) {
+    return '<div class="row"><div class="txt"><div class="nm">' + esc(nm) + '</div>' +
+           '<div class="ds' + (risk ? " risk" : "") + '">' + esc(ds) + "</div></div>" + right + "</div>";
+  }
+
+  function heroHtml() {
+    var gt = S.gmstel, ot = S.oostel;
+    var none = gt.applied === 0 && ot.applied === 0;
+    var full = gt.applied === gt.present && ot.applied === ot.present;
+    var cls = none ? "bad" : (full ? "ok" : "warn");
+    var word = none ? "OFF" : (full ? "ON" : "PARTIAL");
+    var bits = ["GMS " + gt.applied + "/" + gt.present, "OOS " + ot.applied + "/" + ot.present];
+    if (S.peach.dev) bits.push(S.peach.on && S.peach.active ? "dmesg quiet" : (S.peach.on ? "dmesg staged" : "dmesg loud"));
+    if (S.gmsloc.want) bits.push("loc " + S.gmsloc.applied + "/" + S.gmsloc.present);
+    if (S.gmsact.want) bits.push("sensors " + S.gmsact.applied + "/2");
+    if (S.wifiscan.want && S.wifiscan.value === "0") bits.push("wifiscan off");
+    return '<div class="card hero"><div class="big ' + cls + '">' + word + "</div>" +
+           '<div class="sub">' + esc(bits.join("  ·  ")) + "</div></div>";
+  }
+
+  function statusHtml() {
+    if (!S) return '<div class="card"><div class="empty">Could not read status.</div></div>';
+    var h = heroHtml();
+    h += '<div class="sect">On by default</div><div class="card">';
+    h += row("GMS telemetry", "Analytics, Clearcut upload, stats collectors, DropBox reporters",
+             cntBadge(S.gmstel.applied, S.gmstel.present) + swHtml("gmstel", S.gmstel.want));
+    h += row("OxygenOS telemetry", "statistics.rom, olc, logkit, metis, stdid, nhs",
+             cntBadge(S.oostel.applied, S.oostel.present) + swHtml("oostel", S.oostel.want));
+    h += row("dmesg quiet",
+             S.peach.dev ? ("peach_v2 roam-stats — " + S.peach.flood + " lines in the buffer")
+                         : "no peach_v2 Wi-Fi here, inert",
+             peachBadge(S.peach) + swHtml("peach", S.peach.want && S.peach.on, !S.peach.dev));
+    h += row("hung_task timeout", "300 s instead of 60 s, stops benign D-state spam",
+             '<span class="badge ' + (S.hungtask.value >= 300 ? "ok" : "dim") + '">' + S.hungtask.value + "s</span>" +
+             swHtml("hungtask", S.hungtask.want));
+    h += "</div>";
+
+    h += '<div class="sect">Opt in — these change behaviour</div><div class="card">';
+    h += row("GMS location reporting", "Kills Location History / Timeline uploads",
+             cntBadge(S.gmsloc.applied, S.gmsloc.present) + swHtml("gmsloc", S.gmsloc.want), true);
+    h += row("GMS sensors", "Stops step counting and motion detection",
+             cntBadge(S.gmsact.applied, 2) + swHtml("gmsact", S.gmsact.want), true);
+    h += row("Background Wi-Fi scanning", "Less accurate network location",
+             '<span class="badge ' + (S.wifiscan.value === "0" ? "ok" : "dim") + '">' +
+             (S.wifiscan.value === "0" ? "off" : "on") + "</span>" + swHtml("wifiscan", S.wifiscan.want), true);
+    h += "</div>";
+
+    h += '<div class="card"><div class="acts">' +
+         '<button class="act primary" data-run="apply">Apply now</button>' +
+         '<button class="act" data-run="revert">Revert all</button>' +
+         "</div></div>";
+    return h;
+  }
+
+  function textHtml(key, empty) {
+    if (TEXT[key] === undefined) return '<div class="card"><div class="empty">' + empty + "</div></div>";
+    return '<div class="card"><pre>' + esc(TEXT[key]) + "</pre></div>";
+  }
+
+  function draw() {
+    var v = $("view");
+    if (TAB === "status") v.innerHTML = statusHtml();
+    else if (TAB === "report") v.innerHTML = textHtml("report", "Loading report…");
+    else v.innerHTML = textHtml("log", "Loading log…");
+
+    Array.prototype.forEach.call(v.querySelectorAll(".sw"), function (e) {
+      if (e.classList.contains("dead")) return;
+      e.onclick = function () { toggle(e.getAttribute("data-feat")); };
+    });
+    Array.prototype.forEach.call(v.querySelectorAll("button.act"), function (b) {
+      b.onclick = function () { run(b.getAttribute("data-run")); };
+    });
+  }
+
+  function subtitle(msg) { $("subtitle").textContent = msg; }
+
+  async function refresh() {
+    var r = await exec(CTL + " status", 120000);
+    try { S = JSON.parse((r.stdout || "").trim()); } catch (e) { S = null; }
+    if (S) {
+      var n = S.gmstel.applied + S.oostel.applied + S.gmsloc.applied + S.gmsact.applied;
+      subtitle(n + " targets silenced · GMS " + S.gmstel.applied + "/" + S.gmstel.present);
+    } else {
+      subtitle(r.stderr ? "error: " + r.stderr : "could not read status");
+    }
+    draw();
+  }
+
+  async function busy(fn, msg) {
+    var w = $("wrap");
+    w.classList.add("busy");
+    subtitle(msg);
+    await fn();
+    await refresh();
+    w.classList.remove("busy");
+  }
+
+  function wanted(f) {
+    if (!S) return false;
+    if (f === "peach") return S.peach.want && S.peach.on;
+    return S[f].want;
+  }
+
+  function toggle(f) {
+    if (!S) return;
+    var to = wanted(f) ? "off" : "on";
+    busy(function () { return exec(CTL + " " + to + " " + f, 120000); },
+         (to === "on" ? "applying " : "reverting ") + f + "…");
+  }
+
+  function run(what) {
+    busy(function () { return exec(CTL + " " + what, 180000); },
+         what === "apply" ? "applying…" : "reverting everything…");
+  }
+
+  async function loadText(key) {
+    var r = await exec(CTL + " " + key, 120000);
+    TEXT[key] = (r.stdout || r.stderr || "(empty)").replace(/\s+$/, "");
+    if (TAB === key) draw();
+  }
+
+  function setTab(t) {
+    TAB = t;
+    Array.prototype.forEach.call(document.querySelectorAll(".navb"), function (b) {
+      b.classList.toggle("on", b.getAttribute("data-tab") === t);
+    });
+    draw();
+    if (t !== "status") loadText(t);
+  }
+
+  function initTheme() {
+    var saved = null;
+    try { saved = localStorage.getItem("duckanalyticsbs-theme"); } catch (e) {}
+    if (saved) document.documentElement.setAttribute("data-theme", saved);
+    $("themebtn").onclick = function () {
+      var cur = document.documentElement.getAttribute("data-theme");
+      var next = cur === "light" ? "dark" : "light";
+      document.documentElement.setAttribute("data-theme", next);
+      try { localStorage.setItem("duckanalyticsbs-theme", next); } catch (e) {}
+    };
+  }
+
+  async function main() {
+    initTheme();
+    $("nobridge").hidden = !!(KSU && KSU.exec);
+    Array.prototype.forEach.call(document.querySelectorAll(".navb"), function (b) {
+      b.onclick = function () { setTab(b.getAttribute("data-tab")); };
+    });
+    $("refreshbtn").onclick = async function () {
+      if (this.disabled) return;
+      this.disabled = true;
+      this.classList.add("spinning");
+      TEXT = {};
+      await refresh();
+      if (TAB !== "status") await loadText(TAB);
+      this.classList.remove("spinning");
+      this.disabled = false;
+    };
+    await refresh();
+  }
+
+  main();
+})();
+</script>
+</body>
+</html>

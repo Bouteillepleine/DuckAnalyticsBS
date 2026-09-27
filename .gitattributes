@@ -1,0 +1,9 @@
+* text=auto eol=lf
+*.sh text eol=lf
+*.prop text eol=lf
+*.md text eol=lf
+*.json text eol=lf
+*.html text eol=lf
+*.ini text eol=lf
+*.png binary
+*.zip binary
