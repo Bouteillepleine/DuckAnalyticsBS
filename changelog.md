@@ -1,3 +1,12 @@
+## v1.0.1
+
+- dmesg backend is no longer NoMount-only: NoMount, SUSFS `add_open_redirect`, or the
+  module mount, picked automatically and pinnable via `feat_peach_backend`
+- Dropped four components Play Services re-enables within a minute, so state now holds
+- Components PackageManager rejects are remembered and counted as absent
+- Sensor appops set at uid scope; the original mode is restored on revert
+- A section with no targets on this device no longer reads as partial
+
 ## v1.0.0
 
 - GMS telemetry: analytics, Clearcut upload, stats collectors, DropBox reporters
